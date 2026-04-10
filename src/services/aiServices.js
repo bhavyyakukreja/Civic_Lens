@@ -1,12 +1,11 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const dotenv = require('dotenv');
-dotenv.config();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+require("dotenv").config();
+
+const fetch = (...args) =>
+  import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
 const getAIResponse = async (message) => {
   console.log("inside services");
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-  console.log("model created")
+
   const prompt = `
 You are a legal awareness assistant for Indian citizens.
 
@@ -27,12 +26,48 @@ Disclaimer:
 
 User input: ${message}
 `;
-  console.log(process.env.GEMINI_API_KEY)
-  const result = await model.generateContent({prompt});
-  console.log("result received")
-  const response = await result.response;
-  console.log("returning from services")
-  return response.text();
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt,
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    console.log("FULL RESPONSE:", data);
+
+    const text =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new Error("No response text from Gemini");
+    }
+
+    console.log("returning from services");
+
+    return text;
+
+  } catch (error) {
+    console.error("❌ ERROR in getAIResponse:", error);
+    return "Error generating response. Please try again.";
+  }
 };
 
 module.exports = { getAIResponse };
